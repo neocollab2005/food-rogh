@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FoodBridge - User Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="dashboard-container">
+    <button class="logout-btn" onclick="logout()">Logout</button>
+    
+    <div class="dashboard-header">
+      <h1>Welcome to FoodBridge</h1>
+      <p id="welcomeMessage">Hello, User!</p>
+    </div>
+
+    <div class="map-container">
+      <h3>Your Location & Nearby Destinations</h3>
+      <div id="userMap" style="height: 300px; border-radius: 15px;"></div>
+    </div>
+
+    <div class="dashboard-content">
+      <div class="donation-form">
+        <h3>Submit Food Donation</h3>
+        <form id="donationForm">
+          <div class="form-group">
+            <label for="foodName">Food Name</label>
+            <input type="text" id="foodName" name="foodName" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="quantity">Quantity</label>
+            <input type="text" id="quantity" name="quantity" placeholder="e.g., 5 plates, 2kg rice" required>
+          </div>
+          
+          <div class="form-group">
+            <label for="photo">Food Photo URL (optional)</label>
+            <input type="url" id="photo" name="photo" placeholder="https://example.com/food-photo.jpg">
+          </div>
+          
+          <div class="form-group">
+            <label>Delivery Option</label>
+            <div class="radio-group">
+              <label>
+                <input type="radio" name="deliveryOption" value="user_will_donate" required>
+                I will go and donate
+              </label>
+              <label>
+                <input type="radio" name="deliveryOption" value="volunteer_will_collect" required>
+                Volunteer will collect
+              </label>
+            </div>
+          </div>
+          
+          <button type="submit" class="btn-submit">Submit Donation</button>
+        </form>
+      </div>
+
+      <div class="donation-list">
+        <h3>Your Donations</h3>
+        <div id="donationsList">
+          <p>Loading your donations...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let userMap;
+    let userLocation = null;
+    let currentUser = null;
+
+    function initUserDashboard() {
+      // Get user info from localStorage
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        window.location.href = 'login-user.html';
+        return;
+      }
+      
+      currentUser = JSON.parse(userData);
+      document.getElementById('welcomeMessage').textContent = `Hello, ${currentUser.name}!`;
+      
+      // Initialize map
+      initUserMap();
+      
+      // Load user donations
+      loadUserDonations();
+    }
+
+    function initUserMap() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          userLocation = { latitude: lat, longitude: lng };
+          
+          userMap = L.map('userMap').setView([lat, lng], 15);
+          
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+          }).addTo(userMap);
+          
+          L.marker([lat, lng]).addTo(userMap)
+            .bindPopup('Your location')
+            .openPopup();
+            
+          // Add nearby destinations (mock data for demo)
+          addNearbyDestinations(lat, lng);
+        });
+      } else {
+        userMap = L.map('userMap').setView([20.5937, 78.9629], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(userMap);
+      }
+    }
+
+    function addNearbyDestinations(lat, lng) {
+      // Mock nearby destinations (in real app, this would come from a database)
+      const destinations = [
+        { name: "Sunrise Old Age Home", type: "old_age_home", lat: lat + 0.01, lng: lng + 0.01 },
+        { name: "Hope Orphanage", type: "orphanage", lat: lat - 0.01, lng: lng + 0.01 },
+        { name: "Shiva Temple", type: "temple", lat: lat + 0.01, lng: lng - 0.01 }
+      ];
+
+      destinations.forEach(dest => {
+        const icon = dest.type === 'old_age_home' ? '🏠' : dest.type === 'orphanage' ? '🏫' : '🕉️';
+        L.marker([dest.lat, dest.lng])
+          .addTo(userMap)
+          .bindPopup(`${icon} ${dest.name}`)
+          .on('click', function() {
+            showDirections(userLocation, { latitude: dest.lat, longitude: dest.lng }, dest.name);
+          });
+      });
+    }
+
+    function showDirections(from, to, destinationName) {
+      const directionsUrl = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${from.latitude}%2C${from.longitude}%3B${to.latitude}%2C${to.longitude}`;
+      window.open(directionsUrl, '_blank');
+    }
+
+    document.getElementById('donationForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+      data.location = {
+        address: "Current location", // In real app, get from reverse geocoding
+        latitude: userLocation?.latitude,
+        longitude: userLocation?.longitude
+      };
+      
+      try {
+        const response = await fetch('/api/dashboard/submit-donation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          alert('Donation submitted successfully!');
+          e.target.reset();
+          loadUserDonations();
+          
+          // If user selected "user_will_donate", show nearby destinations
+          if (data.deliveryOption === 'user_will_donate') {
+            showNearbyDestinations();
+          }
+        } else {
+          alert(result.message || 'Failed to submit donation');
+        }
+      } catch (error) {
+        alert('Network error. Please try again.');
+      }
+    });
+
+    function showNearbyDestinations() {
+      alert('Great! Check the map for nearby old age homes, orphanages, and temples where you can donate.');
+    }
+
+    async function loadUserDonations() {
+      try {
+        const response = await fetch('/api/dashboard/user-donations', {
+          credentials: 'include'
+        });
+        
+        const donations = await response.json();
+        
+        const donationsList = document.getElementById('donationsList');
+        
+        if (donations.length === 0) {
+          donationsList.innerHTML = '<p>No donations yet. Submit your first donation above!</p>';
+          return;
+        }
+        
+        donationsList.innerHTML = donations.map(donation => `
+          <div class="donation-item">
+            <h4>${donation.foodName}</h4>
+            <p><strong>Quantity:</strong> ${donation.quantity}</p>
+            <p><strong>Delivery:</strong> ${donation.deliveryOption.replace('_', ' ')}</p>
+            <p><strong>Status:</strong> <span class="status-badge status-${donation.status}">${donation.status}</span></p>
+            <p><strong>Date:</strong> ${new Date(donation.createdAt).toLocaleDateString()}</p>
+            ${donation.photo ? `<img src="${donation.photo}" alt="Food photo" style="max-width: 100px; border-radius: 5px;">` : ''}
+          </div>
+        `).join('');
+      } catch (error) {
+        document.getElementById('donationsList').innerHTML = '<p>Error loading donations.</p>';
+      }
+    }
+
+    async function logout() {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          credentials: 'include'
+        });
+        localStorage.removeItem('user');
+        window.location.href = 'index.html';
+      } catch (error) {
+        localStorage.removeItem('user');
+        window.location.href = 'index.html';
+      }
+    }
+
+    window.onload = initUserDashboard;
+  </script>
+</body>
+</html>

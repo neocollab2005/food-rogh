@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FoodBridge - Volunteer Login</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="welcome-section">
+    <div class="girl-container">
+      <img src="https://res.cloudinary.com/dto5amokc/image/upload/v1753696843/WhatsApp_Image_2025-07-28_at_15.24.27_822b2c09_e8s97m.jpg" alt="Animated Girl Namaskaram Pose" />
+    </div>
+  </div>
+
+  <div class="map-container">
+    <h3>Live Users Location</h3>
+    <div id="loginMap" style="height: 250px; border-radius: 15px;"></div>
+  </div>
+
+  <div class="form-container">
+    <h2>Volunteer Login</h2>
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" required>
+      </div>
+      
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      
+      <button type="submit" class="btn-submit">Login</button>
+    </form>
+    
+    <div class="back-link">
+      <a href="forgot-password.html">Forgot Password?</a> | 
+      <a href="index.html">← Back to Home</a>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let loginMap;
+    
+    function initLoginMap() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          
+          loginMap = L.map('loginMap').setView([lat, lng], 13);
+          
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+          }).addTo(loginMap);
+          
+          L.marker([lat, lng]).addTo(loginMap)
+            .bindPopup('You are here!')
+            .openPopup();
+            
+          loadLiveUsers();
+        });
+      } else {
+        loginMap = L.map('loginMap').setView([20.5937, 78.9629], 5);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(loginMap);
+        
+        loadLiveUsers();
+      }
+    }
+    
+    function loadLiveUsers() {
+      fetch('/api/dashboard/live-users')
+        .then(response => response.json())
+        .then(users => {
+          users.forEach(user => {
+            if (user.location && user.location.latitude && user.location.longitude) {
+              const icon = user.role === 'volunteer' ? '🚐' : '👤';
+              L.marker([user.location.latitude, user.location.longitude])
+                .addTo(loginMap)
+                .bindPopup(`${icon} ${user.name} (${user.role})`);
+            }
+          });
+        })
+        .catch(error => console.error('Error loading live users:', error));
+    }
+    
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData);
+      
+      try {
+        const response = await fetch('/api/auth/login-volunteer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          localStorage.setItem('user', JSON.stringify(result.user));
+          window.location.href = 'volunteer-dashboard.html';
+        } else {
+          alert(result.message || 'Login failed');
+        }
+      } catch (error) {
+        alert('Network error. Please try again.');
+      }
+    });
+    
+    window.onload = initLoginMap;
+  </script>
+</body>
+</html>
