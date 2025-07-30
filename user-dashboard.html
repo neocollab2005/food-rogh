@@ -1,237 +1,299 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FoodBridge - User Dashboard</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodBridge - User Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
-  <div class="dashboard-container">
-    <button class="logout-btn" onclick="logout()">Logout</button>
-    
-    <div class="dashboard-header">
-      <h1>Welcome to FoodBridge</h1>
-      <p id="welcomeMessage">Hello, User!</p>
-    </div>
-
-    <div class="map-container">
-      <h3>Your Location & Nearby Destinations</h3>
-      <div id="userMap" style="height: 300px; border-radius: 15px;"></div>
-    </div>
-
-    <div class="dashboard-content">
-      <div class="donation-form">
-        <h3>Submit Food Donation</h3>
-        <form id="donationForm">
-          <div class="form-group">
-            <label for="foodName">Food Name</label>
-            <input type="text" id="foodName" name="foodName" required>
-          </div>
-          
-          <div class="form-group">
-            <label for="quantity">Quantity</label>
-            <input type="text" id="quantity" name="quantity" placeholder="e.g., 5 plates, 2kg rice" required>
-          </div>
-          
-          <div class="form-group">
-            <label for="photo">Food Photo URL (optional)</label>
-            <input type="url" id="photo" name="photo" placeholder="https://example.com/food-photo.jpg">
-          </div>
-          
-          <div class="form-group">
-            <label>Delivery Option</label>
-            <div class="radio-group">
-              <label>
-                <input type="radio" name="deliveryOption" value="user_will_donate" required>
-                I will go and donate
-              </label>
-              <label>
-                <input type="radio" name="deliveryOption" value="volunteer_will_collect" required>
-                Volunteer will collect
-              </label>
-            </div>
-          </div>
-          
-          <button type="submit" class="btn-submit">Submit Donation</button>
-        </form>
-      </div>
-
-      <div class="donation-list">
-        <h3>Your Donations</h3>
-        <div id="donationsList">
-          <p>Loading your donations...</p>
+    <div class="dashboard-container">
+        <!-- Navigation -->
+        <div class="nav">
+            <h2>🍱 FoodBridge - User Dashboard</h2>
+            <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
-      </div>
+
+        <!-- Welcome Header -->
+        <div class="dashboard-header">
+            <h1>Welcome, <span id="userName">User</span>!</h1>
+            <p>Thank you for being part of our mission to reduce food waste and help those in need.</p>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Food Donation Form -->
+            <div class="dashboard-card">
+                <h3>Submit Food Donation</h3>
+                <div id="message"></div>
+                <form id="donationForm">
+                    <div class="form-group">
+                        <label for="foodName">Food Name:</label>
+                        <input type="text" id="foodName" name="foodName" required placeholder="e.g., Rice, Curry, Fruits">
+                    </div>
+                    <div class="form-group">
+                        <label for="quantity">Quantity:</label>
+                        <input type="text" id="quantity" name="quantity" required placeholder="e.g., 5 plates, 2kg">
+                    </div>
+                    <div class="form-group">
+                        <label for="location">Location:</label>
+                        <input type="text" id="location" name="location" required placeholder="Your address/location">
+                    </div>
+                    <div class="form-group">
+                        <label for="photoUrl">Photo URL (optional):</label>
+                        <input type="url" id="photoUrl" name="photoUrl" placeholder="Link to food photo">
+                    </div>
+                    <div class="form-group">
+                        <label for="donationType">Donation Type:</label>
+                        <select id="donationType" name="donationType" required>
+                            <option value="">Select donation type</option>
+                            <option value="user_donate">I will go and donate</option>
+                            <option value="volunteer_collect">Volunteer will collect</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success">Submit Donation</button>
+                </form>
+            </div>
+
+            <!-- Map -->
+            <div class="dashboard-card">
+                <h3>Location & Directions</h3>
+                <div class="map-container">
+                    <div id="map"></div>
+                </div>
+                <div id="nearbyPlaces" style="display: none;">
+                    <h4>Nearby Places to Donate:</h4>
+                    <div id="placesList"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Donation History -->
+        <div class="dashboard-card">
+            <h3>Your Donation History</h3>
+            <div id="donationHistory">
+                <p>Loading your donations...</p>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    let userMap;
-    let userLocation = null;
-    let currentUser = null;
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map;
+        let userLocation = null;
+        let currentUser = null;
 
-    function initUserDashboard() {
-      // Get user info from localStorage
-      const userData = localStorage.getItem('user');
-      if (!userData) {
-        window.location.href = 'login-user.html';
-        return;
-      }
-      
-      currentUser = JSON.parse(userData);
-      document.getElementById('welcomeMessage').textContent = `Hello, ${currentUser.name}!`;
-      
-      // Initialize map
-      initUserMap();
-      
-      // Load user donations
-      loadUserDonations();
-    }
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            initMap();
+            loadDonationHistory();
+        });
 
-    function initUserMap() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          userLocation = { latitude: lat, longitude: lng };
-          
-          userMap = L.map('userMap').setView([lat, lng], 15);
-          
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-          }).addTo(userMap);
-          
-          L.marker([lat, lng]).addTo(userMap)
-            .bindPopup('Your location')
-            .openPopup();
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/dashboard/user-donations', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    window.location.href = 'login-user.html';
+                    return;
+                }
+                
+                // User is authenticated, continue
+            } catch (error) {
+                window.location.href = 'login-user.html';
+            }
+        }
+
+        function initMap() {
+            map = L.map('map').setView([20.5937, 78.9629], 5);
             
-          // Add nearby destinations (mock data for demo)
-          addNearbyDestinations(lat, lng);
-        });
-      } else {
-        userMap = L.map('userMap').setView([20.5937, 78.9629], 5);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(userMap);
-      }
-    }
-
-    function addNearbyDestinations(lat, lng) {
-      // Mock nearby destinations (in real app, this would come from a database)
-      const destinations = [
-        { name: "Sunrise Old Age Home", type: "old_age_home", lat: lat + 0.01, lng: lng + 0.01 },
-        { name: "Hope Orphanage", type: "orphanage", lat: lat - 0.01, lng: lng + 0.01 },
-        { name: "Shiva Temple", type: "temple", lat: lat + 0.01, lng: lng - 0.01 }
-      ];
-
-      destinations.forEach(dest => {
-        const icon = dest.type === 'old_age_home' ? '🏠' : dest.type === 'orphanage' ? '🏫' : '🕉️';
-        L.marker([dest.lat, dest.lng])
-          .addTo(userMap)
-          .bindPopup(`${icon} ${dest.name}`)
-          .on('click', function() {
-            showDirections(userLocation, { latitude: dest.lat, longitude: dest.lng }, dest.name);
-          });
-      });
-    }
-
-    function showDirections(from, to, destinationName) {
-      const directionsUrl = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${from.latitude}%2C${from.longitude}%3B${to.latitude}%2C${to.longitude}`;
-      window.open(directionsUrl, '_blank');
-    }
-
-    document.getElementById('donationForm').addEventListener('submit', async function(e) {
-      e.preventDefault();
-      
-      const formData = new FormData(e.target);
-      const data = Object.fromEntries(formData);
-      data.location = {
-        address: "Current location", // In real app, get from reverse geocoding
-        latitude: userLocation?.latitude,
-        longitude: userLocation?.longitude
-      };
-      
-      try {
-        const response = await fetch('/api/dashboard/submit-donation', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify(data)
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-          alert('Donation submitted successfully!');
-          e.target.reset();
-          loadUserDonations();
-          
-          // If user selected "user_will_donate", show nearby destinations
-          if (data.deliveryOption === 'user_will_donate') {
-            showNearbyDestinations();
-          }
-        } else {
-          alert(result.message || 'Failed to submit donation');
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        userLocation = { lat, lng };
+                        
+                        map.setView([lat, lng], 13);
+                        
+                        L.marker([lat, lng])
+                            .addTo(map)
+                            .bindPopup('You are here!')
+                            .openPopup();
+                    },
+                    function(error) {
+                        console.log('Geolocation error:', error);
+                    }
+                );
+            }
         }
-      } catch (error) {
-        alert('Network error. Please try again.');
-      }
-    });
 
-    function showNearbyDestinations() {
-      alert('Great! Check the map for nearby old age homes, orphanages, and temples where you can donate.');
-    }
-
-    async function loadUserDonations() {
-      try {
-        const response = await fetch('/api/dashboard/user-donations', {
-          credentials: 'include'
+        // Donation form handler
+        document.getElementById('donationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+            
+            // Add coordinates if available
+            if (userLocation) {
+                data.coordinates = userLocation;
+            }
+            
+            try {
+                const response = await fetch('/api/dashboard/submit-donation', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('Donation submitted successfully!', 'success');
+                    this.reset();
+                    
+                    // Show nearby places if user will donate
+                    if (data.donationType === 'user_donate') {
+                        showNearbyPlaces();
+                    }
+                    
+                    loadDonationHistory();
+                } else {
+                    showMessage(result.message, 'error');
+                }
+            } catch (error) {
+                showMessage('Network error. Please try again.', 'error');
+            }
         });
-        
-        const donations = await response.json();
-        
-        const donationsList = document.getElementById('donationsList');
-        
-        if (donations.length === 0) {
-          donationsList.innerHTML = '<p>No donations yet. Submit your first donation above!</p>';
-          return;
+
+        function showNearbyPlaces() {
+            if (!userLocation) return;
+            
+            const nearbyDiv = document.getElementById('nearbyPlaces');
+            const placesList = document.getElementById('placesList');
+            
+            // Sample nearby places (in real app, this would be from a database or API)
+            const places = [
+                { name: 'Sunrise Old Age Home', type: 'old_age_home', distance: '2.3 km', lat: userLocation.lat + 0.01, lng: userLocation.lng + 0.01 },
+                { name: 'Hope Orphanage', type: 'orphanage', distance: '3.1 km', lat: userLocation.lat - 0.015, lng: userLocation.lng + 0.02 },
+                { name: 'Shiva Temple', type: 'temple', distance: '1.8 km', lat: userLocation.lat + 0.005, lng: userLocation.lng - 0.01 }
+            ];
+            
+            placesList.innerHTML = '';
+            places.forEach(place => {
+                const placeDiv = document.createElement('div');
+                placeDiv.className = 'donation-item';
+                placeDiv.innerHTML = `
+                    <h4>${place.name}</h4>
+                    <p><strong>Type:</strong> ${place.type.replace('_', ' ').toUpperCase()}</p>
+                    <p><strong>Distance:</strong> ${place.distance}</p>
+                    <button class="btn btn-primary" onclick="showDirections(${place.lat}, ${place.lng}, '${place.name}')">Get Directions</button>
+                `;
+                placesList.appendChild(placeDiv);
+                
+                // Add marker to map
+                L.marker([place.lat, place.lng])
+                    .addTo(map)
+                    .bindPopup(`${place.name} (${place.distance})`)
+            });
+            
+            nearbyDiv.style.display = 'block';
         }
-        
-        donationsList.innerHTML = donations.map(donation => `
-          <div class="donation-item">
-            <h4>${donation.foodName}</h4>
-            <p><strong>Quantity:</strong> ${donation.quantity}</p>
-            <p><strong>Delivery:</strong> ${donation.deliveryOption.replace('_', ' ')}</p>
-            <p><strong>Status:</strong> <span class="status-badge status-${donation.status}">${donation.status}</span></p>
-            <p><strong>Date:</strong> ${new Date(donation.createdAt).toLocaleDateString()}</p>
-            ${donation.photo ? `<img src="${donation.photo}" alt="Food photo" style="max-width: 100px; border-radius: 5px;">` : ''}
-          </div>
-        `).join('');
-      } catch (error) {
-        document.getElementById('donationsList').innerHTML = '<p>Error loading donations.</p>';
-      }
-    }
 
-    async function logout() {
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          credentials: 'include'
-        });
-        localStorage.removeItem('user');
-        window.location.href = 'index.html';
-      } catch (error) {
-        localStorage.removeItem('user');
-        window.location.href = 'index.html';
-      }
-    }
+        function showDirections(lat, lng, name) {
+            if (!userLocation) return;
+            
+            // Clear existing routes
+            map.eachLayer(layer => {
+                if (layer instanceof L.Polyline) {
+                    map.removeLayer(layer);
+                }
+            });
+            
+            // Draw simple line (in real app, use routing service)
+            const route = L.polyline([
+                [userLocation.lat, userLocation.lng],
+                [lat, lng]
+            ], { color: 'red', weight: 4 }).addTo(map);
+            
+            map.fitBounds(route.getBounds());
+            alert(`Directions to ${name} shown on map!`);
+        }
 
-    window.onload = initUserDashboard;
-  </script>
+        async function loadDonationHistory() {
+            try {
+                const response = await fetch('/api/dashboard/user-donations', {
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayDonationHistory(result.donations);
+                } else {
+                    showMessage('Error loading donation history', 'error');
+                }
+            } catch (error) {
+                showMessage('Network error loading donations', 'error');
+            }
+        }
+
+        function displayDonationHistory(donations) {
+            const historyDiv = document.getElementById('donationHistory');
+            
+            if (donations.length === 0) {
+                historyDiv.innerHTML = '<p>No donations yet. Submit your first donation above!</p>';
+                return;
+            }
+            
+            historyDiv.innerHTML = '';
+            donations.forEach(donation => {
+                const donationDiv = document.createElement('div');
+                donationDiv.className = 'donation-item';
+                donationDiv.innerHTML = `
+                    <h4>${donation.foodName}</h4>
+                    <p><strong>Quantity:</strong> ${donation.quantity}</p>
+                    <p><strong>Location:</strong> ${donation.location}</p>
+                    <p><strong>Type:</strong> ${donation.donationType.replace('_', ' ')}</p>
+                    <p><strong>Date:</strong> ${new Date(donation.createdAt).toLocaleDateString()}</p>
+                    <span class="status ${donation.status}">${donation.status}</span>
+                `;
+                historyDiv.appendChild(donationDiv);
+            });
+        }
+
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                window.location.href = 'index.html';
+            } catch (error) {
+                window.location.href = 'index.html';
+            }
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="message ${type}">${text}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 5000);
+        }
+    </script>
 </body>
 </html>

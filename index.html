@@ -1,95 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FoodBridge - Welcome</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodBridge - Welcome</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
-  <div class="welcome-section">
-    <div class="girl-container">
-      <img src="https://res.cloudinary.com/dto5amokc/image/upload/v1753696843/WhatsApp_Image_2025-07-28_at_15.24.27_822b2c09_e8s97m.jpg" alt="Animated Girl Namaskaram Pose" />
+    <div class="welcome-section">
+        <div class="girl-container">
+            <img src="https://res.cloudinary.com/dto5amokc/image/upload/v1753696843/WhatsApp_Image_2025-07-28_at_15.24.27_822b2c09_e8s97m.jpg" alt="Animated Girl Namaskaram Pose" />
+        </div>
+        <div class="note-box">
+            <h1>Welcome to FoodBridge</h1>
+            <p>
+                A heartfelt platform where humanity connects. <br><br>
+                <strong>FoodBridge</strong> unites those who wish to donate food with kind-hearted volunteers and NGOs to serve the hungry. <br><br>
+                Join us in building a bridge of compassion and nourishment. ❤🍱
+            </p>
+        </div>
     </div>
-    <div class="note-box">
-      <h1>Welcome to FoodBridge</h1>
-      <p>
-        A heartfelt platform where humanity connects.  
-        <br><br>
-        <strong>FoodBridge</strong> unites those who wish to donate food with kind-hearted volunteers and NGOs to serve the hungry.  
-        <br><br>
-        Join us in building a bridge of compassion and nourishment. ❤🍱
-      </p>
+
+    <div class="login-section">
+        <h2>Get Started</h2>
+        <div class="button-group">
+            <button class="btn btn-user-login" onclick="location.href='login-user.html'">Login as User</button>
+            <button class="btn btn-volunteer-login" onclick="location.href='login-volunteer.html'">Login as Volunteer</button>
+            <button class="btn btn-register-user" onclick="location.href='register-user.html'">Register as User</button>
+            <button class="btn btn-register-volunteer" onclick="location.href='register-volunteer.html'">Register as Volunteer</button>
+        </div>
     </div>
-  </div>
 
-  <div class="map-container">
-    <h3>Live Users Location</h3>
-    <div id="indexMap" style="height: 300px; border-radius: 15px;"></div>
-  </div>
-
-  <div class="login-section">
-    <h2>Get Started</h2>
-    <div class="button-group">
-      <button class="btn btn-user-login" onclick="location.href='login-user.html'">Login as User</button>
-      <button class="btn btn-volunteer-login" onclick="location.href='login-volunteer.html'">Login as Volunteer</button>
-      <button class="btn btn-register-user" onclick="location.href='register-user.html'">Register as User</button>
-      <button class="btn btn-register-volunteer" onclick="location.href='register-volunteer.html'">Register as Volunteer</button>
+    <!-- Map Container -->
+    <div class="dashboard-container">
+        <div class="dashboard-card">
+            <h3>Your Current Location</h3>
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    let indexMap;
-    
-    function initIndexMap() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          
-          indexMap = L.map('indexMap').setView([lat, lng], 13);
-          
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-          }).addTo(indexMap);
-          
-          L.marker([lat, lng]).addTo(indexMap)
-            .bindPopup('You are here!')
-            .openPopup();
-            
-          // Load live users
-          loadLiveUsers();
-        });
-      } else {
-        // Default to India if geolocation fails
-        indexMap = L.map('indexMap').setView([20.5937, 78.9629], 5);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(indexMap);
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map
+        let map;
         
-        loadLiveUsers();
-      }
-    }
-    
-    function loadLiveUsers() {
-      fetch('/api/dashboard/live-users')
-        .then(response => response.json())
-        .then(users => {
-          users.forEach(user => {
-            if (user.location && user.location.latitude && user.location.longitude) {
-              const icon = user.role === 'volunteer' ? '🚐' : '👤';
-              L.marker([user.location.latitude, user.location.longitude])
-                .addTo(indexMap)
-                .bindPopup(`${icon} ${user.name} (${user.role})`);
+        function initMap() {
+            // Default center (India)
+            map = L.map('map').setView([20.5937, 78.9629], 5);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Get user's current location
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        // Center map on user's location
+                        map.setView([lat, lng], 13);
+                        
+                        // Add marker for user's location
+                        L.marker([lat, lng])
+                            .addTo(map)
+                            .bindPopup('You are here!')
+                            .openPopup();
+                    },
+                    function(error) {
+                        console.log('Geolocation error:', error);
+                    }
+                );
             }
-          });
-        })
-        .catch(error => console.error('Error loading live users:', error));
-    }
-    
-    window.onload = initIndexMap;
-  </script>
+        }
+        
+        // Initialize map when page loads
+        document.addEventListener('DOMContentLoaded', initMap);
+    </script>
 </body>
 </html>

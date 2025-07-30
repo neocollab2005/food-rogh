@@ -1,303 +1,339 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FoodBridge - Volunteer Dashboard</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoodBridge - Volunteer Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
-  <div class="dashboard-container">
-    <button class="logout-btn" onclick="logout()">Logout</button>
-    
-    <div class="dashboard-header">
-      <h1>Volunteer Dashboard</h1>
-      <p id="welcomeMessage">Hello, Volunteer!</p>
-    </div>
-
-    <div class="map-container">
-      <h3>Available Food Donations</h3>
-      <div id="volunteerMap" style="height: 400px; border-radius: 15px;"></div>
-    </div>
-
-    <div class="dashboard-content">
-      <div class="volunteer-actions">
-        <h3>Available Donations</h3>
-        <div id="availableDonations">
-          <p>Loading available donations...</p>
+    <div class="dashboard-container">
+        <!-- Navigation -->
+        <div class="nav">
+            <h2>🤝 FoodBridge - Volunteer Dashboard</h2>
+            <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
-      </div>
 
-      <div class="donation-list">
-        <h3>Your Accepted Donations</h3>
-        <div id="acceptedDonations">
-          <p>Loading your accepted donations...</p>
+        <!-- Welcome Header -->
+        <div class="dashboard-header">
+            <h1>Welcome, Hero! <span id="volunteerName">Volunteer</span></h1>
+            <p>Thank you for your service in connecting food donors with those in need.</p>
         </div>
-      </div>
-    </div>
-  </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    let volunteerMap;
-    let volunteerLocation = null;
-    let currentUser = null;
-    let donationMarkers = [];
-
-    function initVolunteerDashboard() {
-      // Get user info from localStorage
-      const userData = localStorage.getItem('user');
-      if (!userData) {
-        window.location.href = 'login-volunteer.html';
-        return;
-      }
-      
-      currentUser = JSON.parse(userData);
-      document.getElementById('welcomeMessage').textContent = `Hello, ${currentUser.name}!`;
-      
-      // Initialize map
-      initVolunteerMap();
-      
-      // Load donations
-      loadAvailableDonations();
-      loadAcceptedDonations();
-    }
-
-    function initVolunteerMap() {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          volunteerLocation = { latitude: lat, longitude: lng };
-          
-          volunteerMap = L.map('volunteerMap').setView([lat, lng], 13);
-          
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-          }).addTo(volunteerMap);
-          
-          L.marker([lat, lng]).addTo(volunteerMap)
-            .bindPopup('Your location (Volunteer)')
-            .openPopup();
-        });
-      } else {
-        volunteerMap = L.map('volunteerMap').setView([20.5937, 78.9629], 5);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap contributors'
-        }).addTo(volunteerMap);
-      }
-    }
-
-    async function loadAvailableDonations() {
-      try {
-        const response = await fetch('/api/dashboard/available-donations', {
-          credentials: 'include'
-        });
-        
-        const donations = await response.json();
-        
-        // Clear existing markers
-        donationMarkers.forEach(marker => volunteerMap.removeLayer(marker));
-        donationMarkers = [];
-        
-        const availableDonationsList = document.getElementById('availableDonations');
-        
-        if (donations.length === 0) {
-          availableDonationsList.innerHTML = '<p>No available donations at the moment.</p>';
-          return;
-        }
-        
-        // Add markers to map
-        donations.forEach(donation => {
-          if (donation.location && donation.location.latitude && donation.location.longitude) {
-            const marker = L.marker([donation.location.latitude, donation.location.longitude])
-              .addTo(volunteerMap)
-              .bindPopup(`
-                <strong>${donation.foodName}</strong><br>
-                Quantity: ${donation.quantity}<br>
-                By: ${donation.userId.name}<br>
-                <button onclick="acceptDonation('${donation._id}')" style="margin-top: 5px; padding: 5px 10px; background: #4caf50; color: white; border: none; border-radius: 3px; cursor: pointer;">Accept</button>
-              `);
-            donationMarkers.push(marker);
-          }
-        });
-        
-        // Display in list
-        availableDonationsList.innerHTML = donations.map(donation => `
-          <div class="donation-item">
-            <h4>${donation.foodName}</h4>
-            <p><strong>Quantity:</strong> ${donation.quantity}</p>
-            <p><strong>Donor:</strong> ${donation.userId.name}</p>
-            <p><strong>Address:</strong> ${donation.userId.address}</p>
-            <p><strong>Date:</strong> ${new Date(donation.createdAt).toLocaleDateString()}</p>
-            ${donation.photo ? `<img src="${donation.photo}" alt="Food photo" style="max-width: 100px; border-radius: 5px; margin-top: 5px;">` : ''}
-            <button class="btn-accept" onclick="acceptDonation('${donation._id}')">Accept Donation</button>
-          </div>
-        `).join('');
-      } catch (error) {
-        document.getElementById('availableDonations').innerHTML = '<p>Error loading donations.</p>';
-      }
-    }
-
-    async function loadAcceptedDonations() {
-      try {
-        const response = await fetch('/api/dashboard/accepted-donations', {
-          credentials: 'include'
-        });
-        
-        const donations = await response.json();
-        
-        const acceptedDonationsList = document.getElementById('acceptedDonations');
-        
-        if (donations.length === 0) {
-          acceptedDonationsList.innerHTML = '<p>No accepted donations yet.</p>';
-          return;
-        }
-        
-        acceptedDonationsList.innerHTML = donations.map(donation => `
-          <div class="donation-item">
-            <h4>${donation.foodName}</h4>
-            <p><strong>Quantity:</strong> ${donation.quantity}</p>
-            <p><strong>Donor:</strong> ${donation.userId.name}</p>
-            <p><strong>Address:</strong> ${donation.userId.address}</p>
-            <p><strong>Status:</strong> <span class="status-badge status-${donation.status}">${donation.status}</span></p>
-            <p><strong>Date:</strong> ${new Date(donation.createdAt).toLocaleDateString()}</p>
-            
-            ${donation.status === 'accepted' ? `
-              <div class="directions-section">
-                <h4>Pickup & Delivery</h4>
-                <button class="destination-btn" onclick="showDirections(${donation.userId.location?.latitude || 0}, ${donation.userId.location?.longitude || 0}, '${donation.userId.name} (Pickup)')">
-                  📍 Get Directions to Pickup
-                </button>
-                <div class="destination-options">
-                  <button class="destination-btn" onclick="findNearbyDestination('old_age_home', '${donation._id}')">🏠 Old Age Home</button>
-                  <button class="destination-btn" onclick="findNearbyDestination('orphanage', '${donation._id}')">🏫 Orphanage</button>
-                  <button class="destination-btn" onclick="findNearbyDestination('temple', '${donation._id}')">🕉️ Temple</button>
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Available Donations Map -->
+            <div class="dashboard-card">
+                <h3>Available Food Donations Map</h3>
+                <div class="map-container">
+                    <div id="map"></div>
                 </div>
-                <button class="btn-complete" onclick="completeDonation('${donation._id}')">Mark as Completed</button>
-              </div>
-            ` : ''}
-            
-            ${donation.destinationDetails ? `
-              <p><strong>Delivered to:</strong> ${donation.destinationDetails.name}</p>
-            ` : ''}
-          </div>
-        `).join('');
-      } catch (error) {
-        document.getElementById('acceptedDonations').innerHTML = '<p>Error loading accepted donations.</p>';
-      }
-    }
+                <button class="btn btn-primary" onclick="loadAvailableDonations()">Refresh Donations</button>
+            </div>
 
-    async function acceptDonation(donationId) {
-      try {
-        const response = await fetch(`/api/dashboard/accept-donation/${donationId}`, {
-          method: 'POST',
-          credentials: 'include'
+            <!-- Available Donations List -->
+            <div class="dashboard-card">
+                <h3>Available Donations</h3>
+                <div id="availableDonations">
+                    <p>Loading available donations...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map;
+        let volunteerLocation = null;
+        let currentDonations = [];
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            initMap();
+            loadAvailableDonations();
         });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-          alert('Donation accepted successfully!');
-          loadAvailableDonations();
-          loadAcceptedDonations();
-        } else {
-          alert(result.message || 'Failed to accept donation');
-        }
-      } catch (error) {
-        alert('Network error. Please try again.');
-      }
-    }
 
-    function showDirections(lat, lng, destination) {
-      if (!volunteerLocation) {
-        alert('Unable to get your location for directions.');
-        return;
-      }
-      
-      const directionsUrl = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${volunteerLocation.latitude}%2C${volunteerLocation.longitude}%3B${lat}%2C${lng}`;
-      window.open(directionsUrl, '_blank');
-    }
-
-    function findNearbyDestination(type, donationId) {
-      // Mock nearby destinations (in real app, this would come from a database)
-      const destinations = {
-        'old_age_home': { name: "Sunrise Old Age Home", lat: volunteerLocation.latitude + 0.01, lng: volunteerLocation.longitude + 0.01 },
-        'orphanage': { name: "Hope Orphanage", lat: volunteerLocation.latitude - 0.01, lng: volunteerLocation.longitude + 0.01 },
-        'temple': { name: "Shiva Temple", lat: volunteerLocation.latitude + 0.01, lng: volunteerLocation.longitude - 0.01 }
-      };
-      
-      const dest = destinations[type];
-      if (dest) {
-        showDirections(dest.lat, dest.lng, dest.name);
-      }
-    }
-
-    async function completeDonation(donationId) {
-      const destinationType = prompt('Where did you deliver the food?\n1. Old Age Home\n2. Orphanage\n3. Temple\n\nEnter 1, 2, or 3:');
-      
-      const typeMap = {
-        '1': 'old_age_home',
-        '2': 'orphanage', 
-        '3': 'temple'
-      };
-      
-      const selectedType = typeMap[destinationType];
-      if (!selectedType) {
-        alert('Invalid selection');
-        return;
-      }
-      
-      const destinationName = prompt('Enter the name of the destination:');
-      if (!destinationName) return;
-      
-      try {
-        const response = await fetch(`/api/dashboard/complete-donation/${donationId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            destinationType: selectedType,
-            destinationDetails: {
-              name: destinationName,
-              address: 'Address not specified',
-              latitude: volunteerLocation?.latitude,
-              longitude: volunteerLocation?.longitude
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/dashboard/available-donations', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    window.location.href = 'login-volunteer.html';
+                    return;
+                }
+                
+                // Volunteer is authenticated, continue
+            } catch (error) {
+                window.location.href = 'login-volunteer.html';
             }
-          })
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-          alert('Donation marked as completed! Thank you for your service.');
-          loadAcceptedDonations();
-        } else {
-          alert(result.message || 'Failed to complete donation');
         }
-      } catch (error) {
-        alert('Network error. Please try again.');
-      }
-    }
 
-    async function logout() {
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          credentials: 'include'
-        });
-        localStorage.removeItem('user');
-        window.location.href = 'index.html';
-      } catch (error) {
-        localStorage.removeItem('user');
-        window.location.href = 'index.html';
-      }
-    }
+        function initMap() {
+            map = L.map('map').setView([20.5937, 78.9629], 5);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    function(position) {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        volunteerLocation = { lat, lng };
+                        
+                        map.setView([lat, lng], 13);
+                        
+                        L.marker([lat, lng], {
+                            icon: L.icon({
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34],
+                            })
+                        })
+                            .addTo(map)
+                            .bindPopup('You are here (Volunteer)')
+                            .openPopup();
+                    },
+                    function(error) {
+                        console.log('Geolocation error:', error);
+                    }
+                );
+            }
+        }
 
-    window.onload = initVolunteerDashboard;
-  </script>
+        async function loadAvailableDonations() {
+            try {
+                const response = await fetch('/api/dashboard/available-donations', {
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentDonations = result.donations;
+                    displayDonationsOnMap(result.donations);
+                    displayDonationsList(result.donations);
+                } else {
+                    showMessage('Error loading donations', 'error');
+                }
+            } catch (error) {
+                showMessage('Network error loading donations', 'error');
+            }
+        }
+
+        function displayDonationsOnMap(donations) {
+            // Clear existing donation markers
+            map.eachLayer(layer => {
+                if (layer instanceof L.Marker && layer.options.isDonation) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            donations.forEach((donation, index) => {
+                const lat = donation.coordinates?.lat || (20.5937 + Math.random() * 0.1);
+                const lng = donation.coordinates?.lng || (78.9629 + Math.random() * 0.1);
+                
+                const marker = L.marker([lat, lng], {
+                    isDonation: true,
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                    })
+                }).addTo(map);
+
+                const popupContent = `
+                    <div>
+                        <h4>${donation.foodName}</h4>
+                        <p><strong>Quantity:</strong> ${donation.quantity}</p>
+                        <p><strong>Location:</strong> ${donation.location}</p>
+                        <p><strong>Donor:</strong> ${donation.userId.name}</p>
+                        <button onclick="acceptDonation('${donation._id}')" style="background: #4caf50; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">Accept</button>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+            });
+        }
+
+        function displayDonationsList(donations) {
+            const donationsDiv = document.getElementById('availableDonations');
+            
+            if (donations.length === 0) {
+                donationsDiv.innerHTML = '<p>No available donations at the moment. Check back later!</p>';
+                return;
+            }
+            
+            donationsDiv.innerHTML = '';
+            donations.forEach(donation => {
+                const donationDiv = document.createElement('div');
+                donationDiv.className = 'donation-item';
+                donationDiv.innerHTML = `
+                    <h4>${donation.foodName}</h4>
+                    <p><strong>Quantity:</strong> ${donation.quantity}</p>
+                    <p><strong>Location:</strong> ${donation.location}</p>
+                    <p><strong>Donor:</strong> ${donation.userId.name}</p>
+                    <p><strong>Address:</strong> ${donation.userId.address}</p>
+                    <p><strong>Posted:</strong> ${new Date(donation.createdAt).toLocaleDateString()}</p>
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-success" onclick="acceptDonation('${donation._id}')">Accept Donation</button>
+                        <button class="btn btn-primary" onclick="showDirections(${donation.coordinates?.lat || 20.5937}, ${donation.coordinates?.lng || 78.9629}, '${donation.userId.name}')">Get Directions</button>
+                    </div>
+                `;
+                donationsDiv.appendChild(donationDiv);
+            });
+        }
+
+        async function acceptDonation(donationId) {
+            if (!confirm('Are you sure you want to accept this donation?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/dashboard/accept-donation/${donationId}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Donation accepted successfully! Now show directions to pickup location, then to delivery destinations.');
+                    
+                    // Show delivery options
+                    showDeliveryOptions(donationId);
+                    
+                    // Reload donations
+                    loadAvailableDonations();
+                } else {
+                    alert('Error accepting donation: ' + result.message);
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        function showDeliveryOptions(donationId) {
+            const deliveryOptions = `
+                <div style="background: white; padding: 20px; border-radius: 10px; margin: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+                    <h3>Choose Delivery Destination:</h3>
+                    <button class="btn btn-success" onclick="completeDonation('${donationId}', 'old_age_home')">Old Age Home</button>
+                    <button class="btn btn-success" onclick="completeDonation('${donationId}', 'orphanage')">Orphanage</button>
+                    <button class="btn btn-success" onclick="completeDonation('${donationId}', 'temple')">Temple</button>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', deliveryOptions);
+        }
+
+        async function completeDonation(donationId, destinationType) {
+            try {
+                const response = await fetch(`/api/dashboard/complete-donation/${donationId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ destinationType }),
+                    credentials: 'include'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Donation completed! Thank you for delivering to ${destinationType.replace('_', ' ')}`);
+                    
+                    // Remove delivery options
+                    const deliveryDiv = document.querySelector('div[style*="background: white"]');
+                    if (deliveryDiv) deliveryDiv.remove();
+                    
+                    // Reload donations
+                    loadAvailableDonations();
+                } else {
+                    alert('Error completing donation: ' + result.message);
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        function showDirections(lat, lng, donorName) {
+            if (!volunteerLocation) {
+                alert('Unable to get your location for directions');
+                return;
+            }
+            
+            // Clear existing routes
+            map.eachLayer(layer => {
+                if (layer instanceof L.Polyline) {
+                    map.removeLayer(layer);
+                }
+            });
+            
+            // Draw route from volunteer to donation location
+            const route = L.polyline([
+                [volunteerLocation.lat, volunteerLocation.lng],
+                [lat, lng]
+            ], { color: 'blue', weight: 4 }).addTo(map);
+            
+            map.fitBounds(route.getBounds());
+            
+            alert(`Directions to ${donorName}'s location shown on map!`);
+            
+            // Show sample nearby delivery locations
+            showNearbyDeliveryLocations(lat, lng);
+        }
+
+        function showNearbyDeliveryLocations(donationLat, donationLng) {
+            // Sample delivery locations
+            const deliveryPlaces = [
+                { name: 'Sunrise Old Age Home', type: 'old_age_home', lat: donationLat + 0.01, lng: donationLng + 0.01 },
+                { name: 'Hope Orphanage', type: 'orphanage', lat: donationLat - 0.015, lng: donationLng + 0.02 },
+                { name: 'Shiva Temple', type: 'temple', lat: donationLat + 0.005, lng: donationLng - 0.01 }
+            ];
+            
+            // Add delivery location markers
+            deliveryPlaces.forEach(place => {
+                L.marker([place.lat, place.lng], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                    })
+                })
+                .addTo(map)
+                .bindPopup(`${place.name} - ${place.type.replace('_', ' ')}`);
+            });
+        }
+
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                
+                window.location.href = 'index.html';
+            } catch (error) {
+                window.location.href = 'index.html';
+            }
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.innerHTML = `<div class="message ${type}">${text}</div>`;
+            document.body.insertBefore(messageDiv, document.body.firstChild);
+            setTimeout(() => {
+                messageDiv.remove();
+            }, 5000);
+        }
+    </script>
 </body>
 </html>
